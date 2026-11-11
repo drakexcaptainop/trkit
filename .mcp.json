@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "briefkit-marketdata": {
+      "command": "uv",
+      "args": ["run", "--directory", ".", "briefkit-marketdata"]
+    },
+    "briefkit-forecast": {
+      "command": "uv",
+      "args": ["run", "--directory", ".", "briefkit-forecast"]
+    },
+    "briefkit-news": {
+      "command": "uv",
+      "args": ["run", "--directory", ".", "briefkit-news"]
+    }
+  }
+}
