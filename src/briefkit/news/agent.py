@@ -91,7 +91,7 @@ def run_agent(
         {"role": "user", "content": f"Ticker: {ticker}\nCandidates:\n{listing}"},
     ]
     options = {"num_ctx": settings.ollama_num_ctx}
-    calls = malformed = 0
+    calls = malformed = refused = 0
 
     def ask(use_tools: bool, fmt: str | None = None):
         try:
@@ -108,13 +108,16 @@ def run_agent(
                 "Is Ollama running, and is the model pulled?"
             ) from exc
 
-    while True:
-        reply = ask(use_tools=calls < settings.agent_call_budget).message
+    budget = settings.agent_call_budget
+    stopped = False
+    for _ in range(3 * budget + 3):  # hard cap: refused or malformed calls cannot loop forever
+        reply = ask(use_tools=not stopped and calls < budget).message
         messages.append(reply)
         tool_calls = list(getattr(reply, "tool_calls", None) or [])
-        if not tool_calls or calls >= settings.agent_call_budget:
-            if tool_calls:
-                result.warnings.append("Agent hit its fetch budget; using what it had read.")
+        if not tool_calls:
+            break
+        if stopped or calls >= budget:
+            result.warnings.append("Agent hit its fetch budget; using what it had read.")
             break
         for call in tool_calls:
             args = call.function.arguments if call.function.name == "fetch_page" else None
@@ -124,11 +127,13 @@ def run_agent(
                 outcome = 'Malformed call. Use fetch_page with {"url": "<candidate url>"}.'
                 if malformed > 1:
                     result.warnings.append("Agent kept making malformed tool calls; stopped.")
-                    messages.append({"role": "tool", "content": outcome})
-                    calls = settings.agent_call_budget
-                    continue
+                    stopped = True
             elif url not in allowed:
+                refused += 1
                 outcome = "Refused: that URL is not in the candidate list."
+                if refused > 2:
+                    result.warnings.append("Agent kept requesting URLs it was not given; stopped.")
+                    stopped = True
             else:
                 calls += 1
                 try:
@@ -137,7 +142,12 @@ def run_agent(
                     outcome = _wrap(page)
                 except FetchError as exc:
                     outcome = f"Could not fetch: {exc}"
+                    result.warnings.append(f"Could not read {url}: {exc}")
             messages.append({"role": "tool", "content": outcome})
+    else:
+        result.warnings.append(
+            "Agent did not finish within its step limit; using what it had read."
+        )
 
     items = _parse_items(reply.content)
     if items is None:

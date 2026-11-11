@@ -9,7 +9,7 @@ from briefkit.news.service import NewsService
 
 mcp = FastMCP("briefkit-news")
 _service: NewsService | None = None
-_RSS_AGENT = "briefkit-research/0.1"
+_USER_AGENT = "briefkit-research/0.1"
 
 
 def _build_service() -> NewsService:
@@ -25,7 +25,7 @@ def _build_service() -> NewsService:
 
     def rss_text(url: str) -> str:
         try:
-            resp = httpx.get(url, headers={"User-Agent": _RSS_AGENT}, timeout=20)
+            resp = httpx.get(url, headers={"User-Agent": _USER_AGENT}, timeout=20)
             resp.raise_for_status()
             return resp.text
         except httpx.HTTPError as exc:
@@ -36,8 +36,10 @@ def _build_service() -> NewsService:
         make_sources=lambda ticker, today: build_sources(
             ticker, settings, get_json, rss_text, today
         ),
-        fetcher=HttpFetcher(_RSS_AGENT, settings.page_text_cap),
-        client=ollama.Client(),
+        fetcher=HttpFetcher(
+            _USER_AGENT, settings.page_text_cap, sec_user_agent=settings.sec_user_agent
+        ),
+        client=ollama.Client(timeout=180),
     )
 
 

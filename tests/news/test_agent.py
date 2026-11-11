@@ -127,3 +127,15 @@ def test_still_unparsable_means_no_items_and_a_warning():
 def test_unreachable_model_raises_agent_unavailable():
     with pytest.raises(AgentUnavailable, match="Ollama"):
         run([ConnectionError("refused")])
+
+
+def test_model_that_keeps_requesting_refused_urls_is_stopped():
+    bad = reply(tool_calls=[call("fetch_page", url="https://evil.com/x")])
+    res, _, fetcher = run([bad] * 12 + [reply(FINAL)])
+    assert fetcher.urls == []
+    assert any("not given" in w for w in res.warnings)
+
+
+def test_failed_page_fetch_is_a_warning():
+    res, _, _ = run([reply(tool_calls=[call("fetch_page", url="https://a.com/2")]), reply(FINAL)])
+    assert any("a.com/2" in w for w in res.warnings)
