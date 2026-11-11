@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import importlib.util
+
 from fastmcp import FastMCP
 
 from briefkit.common.config import Settings
@@ -20,10 +22,15 @@ def _get_service() -> ForecastService:
     global _service
     if _service is None:
         settings = Settings.from_env()
+        models: list = [GarchForecaster()]
+        if importlib.util.find_spec("chronos") is not None:
+            from briefkit.forecast.foundation import ChronosForecaster
+
+            models.append(ChronosForecaster())
         _service = ForecastService(
             prices=PriceService(YahooProvider()),
             baseline=EwmaBaseline(),
-            models=[GarchForecaster()],
+            models=models,
             ledger=Ledger(settings.ledger_path),
         )
     return _service
